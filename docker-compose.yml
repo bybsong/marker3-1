@@ -1,131 +1,32 @@
 # ==================================================================================
-# DOCKER COMPOSE FOR MARKER3 - FLEXIBLE DEVELOPMENT & PRODUCTION
+# DOCKER COMPOSE FOR MARKER3 - SIMPLIFIED WITH BUILT-IN MODEL MANAGEMENT
 # ==================================================================================
-# Modes: basic → development → secure-dev → dev-open → production
-# Docker Desktop compatible networking (uses default bridge + env controls)
+# Modes: dev-open → dev-secure → production
+# Uses marker's built-in model management (no custom scripts)
+# Docker Desktop compatible networking + RTX 5090 optimized
 # ==================================================================================
 
 version: '3.8'
 
 services:
-  # Phase 1: Model Download Service (ONE-TIME SETUP)
-  marker-download:
-    image: marker3:rtx5090-dev-full
-    container_name: marker3-download
-    profiles: [download]
-    volumes:
-      - ./models:/app/models:rw
-      - ./data:/app/data:rw
-      - ./output:/app/output:rw
-    environment:
-      - CUDA_VISIBLE_DEVICES=0
-      - PYTHONUNBUFFERED=1
-      - HF_HOME=/app/models/.cache
-      - HF_HUB_OFFLINE=0  # Allow downloads
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    command: python scripts/download_models.py
-    # Uses Docker Desktop's default network (reliable)
 
-  # Basic Mode: Stable functionality with pre-downloaded models
-  marker-basic:
-    image: marker3:rtx5090-dev-full
-    container_name: marker3-basic
-    profiles: [basic]
-    volumes:
-      - ./models:/app/models:ro  # Pre-downloaded models
-      - ./data:/app/data:rw
-      - ./output:/app/output:rw
-    environment:
-      - CUDA_VISIBLE_DEVICES=0
-      - PYTHONUNBUFFERED=1
-      - HF_HOME=/app/models/.cache
-      - HF_HUB_OFFLINE=1         # Secure - no external model access
-      - TRANSFORMERS_OFFLINE=1   # Secure - no external access
-      - NETWORK_MODE=restricted
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    ports:
-      - "8000:8000"  # API access
-    command: python -m marker.scripts.server --host 0.0.0.0 --port 8000
-    healthcheck:
-      test: ["CMD", "python", "-c", "import marker; print('Marker ready')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    # Uses default network - Docker Desktop compatible
-
-  # Development Mode: Live code editing + controlled network access
-  marker-dev:
-    image: marker3:rtx5090-dev-full
-    container_name: marker3-dev
-    profiles: [dev, dev-secure]
-    volumes:
-      - ./models:/app/models:ro
-      - ./data:/app/data:rw
-      - ./output:/app/output:rw
-      # LIVE CODE EDITING - no rebuilds needed
-      - ./marker:/app/marker:rw
-      - ./scripts:/app/scripts:rw
-      - ./pyproject.toml:/app/pyproject.toml:ro
-    environment:
-      - CUDA_VISIBLE_DEVICES=0
-      - PYTHONUNBUFFERED=1
-      - HF_HOME=/app/models/.cache
-      - HF_HUB_OFFLINE=1         # Secure by default
-      - TRANSFORMERS_OFFLINE=1   # Secure by default
-      - NETWORK_MODE=secure-dev
-      - PYTHONPATH=/app
-      - FASTAPI_RELOAD=true      # Hot reload for development
-    runtime: nvidia
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    ports:
-      - "8000:8000"  # FastAPI/API
-      - "8501:8501"  # Streamlit UI
-    healthcheck:
-      test: ["CMD", "python", "-c", "import marker; print('Dev ready')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
-  # Development Open Mode: For model updates and package installations
+  # Development Open: First-time setup and model downloads
   marker-dev-open:
     image: marker3:rtx5090-dev-full
     container_name: marker3-dev-open
-    profiles: [dev-open]
+    profiles: [dev-open, first-run]
     volumes:
-      - ./models:/app/models:rw  # Can update models
+      - ./cache:/home/appuser/.cache  # Host directory for model cache (better permissions)
       - ./data:/app/data:rw
       - ./output:/app/output:rw
+      # Live code editing for development
       - ./marker:/app/marker:rw
       - ./scripts:/app/scripts:rw
-      - ./pyproject.toml:/app/pyproject.toml:ro
     environment:
       - CUDA_VISIBLE_DEVICES=0
       - PYTHONUNBUFFERED=1
-      - HF_HOME=/app/models/.cache
       - HF_HUB_OFFLINE=0         # Allow model downloads
-      - TRANSFORMERS_OFFLINE=0   # Allow external access
+      - TRANSFORMERS_OFFLINE=0   # Allow model downloads
       - NETWORK_MODE=open
       - PYTHONPATH=/app
     runtime: nvidia
@@ -137,8 +38,53 @@ services:
               count: 1
               capabilities: [gpu]
     ports:
-      - "8000:8000"
-      - "8501:8501"
+      - "8000:8000"  # FastAPI server
+      - "8501:8501"  # Streamlit UI
+    command: python -c "from marker.scripts.server import server_cli; server_cli(['--host', '0.0.0.0', '--port', '8000'])"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import marker; print('Dev-open ready')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s  # Longer startup time for model downloads
+
+  # Development Secure: Live code editing with network restrictions
+  marker-dev-secure:
+    image: marker3:rtx5090-dev-full
+    container_name: marker3-dev-secure
+    profiles: [dev-secure, dev]
+    volumes:
+      - ./cache:/home/appuser/.cache  # Host directory for model cache
+      - ./data:/app/data:rw
+      - ./output:/app/output:rw
+      # Live code editing for development
+      - ./marker:/app/marker:rw
+      - ./scripts:/app/scripts:rw
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - HF_HUB_OFFLINE=1         # Secure - use cached models only
+      - TRANSFORMERS_OFFLINE=1   # Secure - no external access
+      - NETWORK_MODE=secure
+      - PYTHONPATH=/app
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"  # FastAPI server
+      - "8501:8501"  # Streamlit UI
+    command: python -c "from marker.scripts.server import server_cli; server_cli(['--host', '0.0.0.0', '--port', '8000'])"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import marker; print('Dev-secure ready')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Production Mode: Maximum security, baked-in code
   marker-production:
@@ -146,16 +92,15 @@ services:
     container_name: marker3-production
     profiles: [production]
     volumes:
-      - ./models:/app/models:ro  # Read-only models
+      - marker_cache:/home/appuser/.cache  # Read-only cached models
       - ./data:/app/data:rw
       - ./output:/app/output:rw
-      # NO source code mounts - uses baked-in code
+      # NO source code mounts - uses baked-in code only
     environment:
       - CUDA_VISIBLE_DEVICES=0
       - PYTHONUNBUFFERED=1
-      - HF_HOME=/app/models/.cache
-      - HF_HUB_OFFLINE=1         # Maximum security
-      - TRANSFORMERS_OFFLINE=1   # Maximum security
+      - HF_HUB_OFFLINE=1         # Maximum security - use cached models only
+      - TRANSFORMERS_OFFLINE=1   # Maximum security - no external access
       - NETWORK_MODE=production
     runtime: nvidia
     deploy:
@@ -167,6 +112,7 @@ services:
               capabilities: [gpu]
     ports:
       - "8000:8000"
+    command: python -c "from marker.scripts.server import server_cli; server_cli(['--host', '0.0.0.0', '--port', '8000'])"
     # Maximum security hardening
     cap_drop:
       - ALL
@@ -195,8 +141,8 @@ networks:
 
 # Persistent data storage
 volumes:
-  models:
-    driver: local
+  marker_cache:
+    driver: local  # Persistent cache for marker's built-in model management
   data:
     driver: local
   output:
