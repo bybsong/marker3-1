@@ -1,0 +1,13 @@
+{
+  "downloaded_at": "1759167752.0",
+  "models": [
+    "detection",
+    "recognition",
+    "layout",
+    "order",
+    "table_rec"
+  ],
+  "cuda_available": true,
+  "cuda_version": "12.6",
+  "pytorch_version": "2.7.0+cu126"
+}

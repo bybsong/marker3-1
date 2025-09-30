@@ -1,0 +1,39 @@
+{
+  "box_pad_id": 1001,
+  "box_size": {
+    "height": 1024,
+    "width": 1024
+  },
+  "do_align_long_axis": false,
+  "do_normalize": true,
+  "do_pad": true,
+  "do_reduce_labels": true,
+  "do_rescale": true,
+  "do_resize": true,
+  "do_thumbnail": true,
+  "feature_extractor_type": "SegformerFeatureExtractor",
+  "image_mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "image_processor_type": "OrderImageProcessor",
+  "image_std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "max_boxes": 255,
+  "patch_size": [
+    4,
+    4
+  ],
+  "resample": 2,
+  "rescale_factor": 0.00392156862745098,
+  "size": {
+    "height": 1024,
+    "width": 1024
+  },
+  "token_pad_id": 1282,
+  "token_sep_id": 1281
+}

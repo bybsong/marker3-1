@@ -1,0 +1,80 @@
+{
+  "_name_or_path": "vikp/layout4",
+  "architectures": [
+    "EfficientViTForSemanticSegmentation"
+  ],
+  "attention_probs_dropout_prob": 0.0,
+  "classifier_dropout_prob": 0.0,
+  "decoder_hidden_size": 512,
+  "decoder_layer_hidden_size": 128,
+  "depths": [
+    1,
+    1,
+    1,
+    6,
+    6
+  ],
+  "head_dim": 32,
+  "hidden_dropout_prob": 0.0,
+  "hidden_sizes": [
+    32,
+    64,
+    160,
+    256
+  ],
+  "id2label": {
+    "0": "Blank",
+    "1": "Caption",
+    "2": "Footnote",
+    "3": "Formula",
+    "4": "List-item",
+    "5": "Page-footer",
+    "6": "Page-header",
+    "7": "Picture",
+    "8": "Section-header",
+    "9": "Table",
+    "10": "Text",
+    "11": "Title"
+  },
+  "initializer_range": 0.02,
+  "label2id": {
+    "Blank": 0,
+    "Caption": 1,
+    "Footnote": 2,
+    "Formula": 3,
+    "List-item": 4,
+    "Page-footer": 5,
+    "Page-header": 6,
+    "Picture": 7,
+    "Section-header": 8,
+    "Table": 9,
+    "Text": 10,
+    "Title": 11
+  },
+  "layer_norm_eps": 1e-06,
+  "model_type": "efficientvit",
+  "num_channels": 3,
+  "num_classes": 2,
+  "num_stages": 4,
+  "patch_size": [
+    7,
+    7
+  ],
+  "semantic_loss_ignore_index": -1,
+  "strides": [
+    2,
+    2,
+    2,
+    2,
+    2
+  ],
+  "torch_dtype": "float32",
+  "transformers_version": "4.42.4",
+  "widths": [
+    32,
+    64,
+    128,
+    256,
+    512
+  ]
+}

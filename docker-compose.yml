@@ -1,0 +1,154 @@
+# ==================================================================================
+# DOCKER COMPOSE FOR MARKER3 - TWO-PHASE MODEL DOWNLOAD STRATEGY
+# ==================================================================================
+# Phase 1: Run with network access to download models
+# Phase 2: Run with network restrictions for production use
+# ==================================================================================
+
+version: '3.8'
+
+services:
+  # Phase 1: Model Download Service (WITH network access)
+  marker-download:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: marker3:latest
+    container_name: marker3-download
+    profiles:
+      - download
+    volumes:
+      - ./models:/app/models:rw
+      - ./data:/app/data:rw
+      - ./output:/app/output:rw
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/models/.cache
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    command: python scripts/download_models.py
+    networks:
+      - default
+    # Full network access for downloading models
+
+  # Phase 2: Production Service (NETWORK RESTRICTED)
+  marker-app:
+    build:
+      context: .
+      dockerfile: Dockerfile  
+      target: runtime
+    image: marker3:latest
+    container_name: marker3-app
+    profiles:
+      - production
+    depends_on:
+      - marker-download
+    volumes:
+      - ./models:/app/models:ro  # Read-only models
+      - ./data:/app/data:rw
+      - ./output:/app/output:rw
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - HF_HOME=/app/models/.cache
+      - HF_HUB_OFFLINE=1  # Force offline mode
+      - TRANSFORMERS_OFFLINE=1
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+    networks:
+      - restricted
+    # Network restrictions for production
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    read_only: false  # Set to true if your app doesn't need to write to filesystem
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1G
+    healthcheck:
+      test: ["CMD", "python", "-c", "import marker; print('Marker is ready')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # Optional: Web interface service
+  marker-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: marker3:latest
+    container_name: marker3-web
+    profiles:
+      - web
+    depends_on:
+      - marker-app
+    volumes:
+      - ./models:/app/models:ro
+      - ./data:/app/data:rw
+      - ./output:/app/output:rw
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - PYTHONUNBUFFERED=1
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8501:8501"  # Streamlit default port
+    networks:
+      - restricted
+    command: python -m marker.scripts.run_streamlit_app
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  # Default network for model download (full internet access)
+  default:
+    driver: bridge
+    
+  # Restricted network for production (no external access)
+  restricted:
+    driver: bridge
+    internal: true  # No external connectivity
+
+volumes:
+  models:
+    driver: local
+  data:
+    driver: local
+  output:
+    driver: local
