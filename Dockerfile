@@ -71,8 +71,8 @@ WORKDIR /app
 # Copy dependency files FIRST for optimal Docker layer caching
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies in virtual environment
-RUN poetry install --only=main --extras=full && rm -rf $POETRY_CACHE_DIR
+# Install ALL dependencies (main + dev) for complete development environment
+RUN poetry install --extras=full && rm -rf $POETRY_CACHE_DIR
 
 # Copy source code AFTER dependencies are installed
 COPY . .
