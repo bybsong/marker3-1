@@ -47,6 +47,7 @@ class OutputFormat(str, Enum):
     json = "json"
     html = "html"
     chunks = "chunks"
+    all = "all"
 
 
 class SaveLocation(str, Enum):
@@ -70,9 +71,10 @@ async def root():
     <li>Page Range: All pages</li>
     <li>Force OCR: True (best accuracy)</li>
     <li>Paginate Output: True</li>
-    <li>Output Format: Markdown (dropdown selection)</li>
+    <li>Output Format: Markdown, JSON, HTML, Chunks, or All formats</li>
     <li>Save Location: Organization label (for your reference)</li>
 </ul>
+<p><strong>RTX 5090 Optimizations:</strong> Batch sizes optimized for 32GB VRAM</p>
 <p><strong>Output:</strong> Downloads as ZIP file named filename_date_time_location.zip</p>
 <p><strong>Example:</strong> TDTest_20250930_143022_PMHx.zip</p>
 """
@@ -165,6 +167,11 @@ async def convert_pdf_upload(
     paginate_output: Optional[bool] = Form(default=True, description="Add page separators in output"),
     output_format: OutputFormat = Form(default=OutputFormat.markdown, description="Select output format"),
     save_location: SaveLocation = Form(default=SaveLocation.pmhx, description="Choose output organization (for your reference)"),
+    # RTX 5090 Performance Optimization
+    table_rec_batch_size: Optional[int] = Form(default=48, description="Table recognition batch size (RTX 5090 optimized: 48)"),
+    detection_batch_size: Optional[int] = Form(default=32, description="Detection model batch size (RTX 5090 optimized: 32)"),
+    recognition_batch_size: Optional[int] = Form(default=64, description="Text recognition batch size (RTX 5090 optimized: 64)"),
+    disable_multiprocessing: Optional[bool] = Form(default=False, description="Disable multiprocessing (use for debugging)"),
     file: UploadFile = File(
         ..., description="The PDF file to convert.", media_type="application/pdf"
     ),
@@ -195,27 +202,51 @@ async def convert_pdf_upload(
         output_format=output_format,
     )
     
-    # Process the PDF
+        # Process the PDF
     try:
-        # Override the output directory in the config
-        options = params.model_dump()
-        options["output_dir"] = temp_output_dir
-        config_parser = ConfigParser(options)
+        # Handle "all" format by generating all formats
+        if output_format == OutputFormat.all:
+            formats_to_generate = ["markdown", "json", "html", "chunks"]
+        else:
+            formats_to_generate = [output_format.value]
         
-        config_dict = config_parser.generate_config_dict()
-        config_dict["pdftext_workers"] = 1
-        converter = PdfConverter(
-            config=config_dict,
-            artifact_dict=app_data["models"],
-            processor_list=config_parser.get_processors(),
-            renderer=config_parser.get_renderer(),
-            llm_service=config_parser.get_llm_service(),
-        )
-        rendered = converter(upload_path)
-        
-        # Save to temporary directory
-        from marker.output import save_output
-        save_output(rendered, temp_output_dir, filename_base)
+        # Generate each requested format
+        for format_type in formats_to_generate:
+            # Override the output directory and format in the config
+            options = params.model_dump()
+            options["output_dir"] = temp_output_dir
+            options["output_format"] = format_type
+            
+            # Add RTX 5090 performance optimizations
+            if table_rec_batch_size:
+                options["table_rec_batch_size"] = table_rec_batch_size
+            if detection_batch_size:
+                options["detection_batch_size"] = detection_batch_size  
+            if recognition_batch_size:
+                options["recognition_batch_size"] = recognition_batch_size
+            if disable_multiprocessing:
+                options["disable_multiprocessing"] = disable_multiprocessing
+                
+            config_parser = ConfigParser(options)
+            
+            config_dict = config_parser.generate_config_dict()
+            config_dict["pdftext_workers"] = 1
+            converter = PdfConverter(
+                config=config_dict,
+                artifact_dict=app_data["models"],
+                processor_list=config_parser.get_processors(),
+                renderer=config_parser.get_renderer(),
+                llm_service=config_parser.get_llm_service(),
+            )
+            rendered = converter(upload_path)
+            
+            # Save with format-specific filename
+            from marker.output import save_output
+            if output_format == OutputFormat.all:
+                format_filename = f"{filename_base}_{format_type}"
+            else:
+                format_filename = filename_base
+            save_output(rendered, temp_output_dir, format_filename)
         
         # Create zip file for download
         zip_filename = f"{job_name}.zip"
@@ -235,11 +266,18 @@ async def convert_pdf_upload(
         shutil.rmtree(temp_output_dir)
         
         # Return file for download
+        def cleanup_file():
+            try:
+                if os.path.exists(zip_path):
+                    os.remove(zip_path)
+            except:
+                pass
+                
         return FileResponse(
             path=zip_path,
             filename=zip_filename,
             media_type="application/zip",
-            background=lambda: os.remove(zip_path)  # Clean up after download
+            background=cleanup_file  # Clean up after download
         )
         
     except Exception as e:
