@@ -29,6 +29,7 @@ services:
       - TRANSFORMERS_OFFLINE=0   # Allow model downloads
       - NETWORK_MODE=open
       - PYTHONPATH=/app
+      - FASTAPI_RELOAD=true      # Enable hot reload for development
     runtime: nvidia
     deploy:
       resources:

@@ -98,7 +98,14 @@ class ConfigParser:
                     config["debug_json"] = True
                     config["debug_data_folder"] = output_dir
                 case "page_range":
-                    config["page_range"] = parse_range_str(v)
+                    if v == "all" or v is None:
+                        config["page_range"] = None  # None means all pages
+                    else:
+                        try:
+                            config["page_range"] = parse_range_str(v)
+                        except ValueError as e:
+                            logger.warning(f"Invalid page_range '{v}', using all pages. Error: {e}")
+                            config["page_range"] = None
                 case "config_json":
                     with open(v, "r", encoding="utf-8") as f:
                         config.update(json.load(f))
