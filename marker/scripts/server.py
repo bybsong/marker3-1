@@ -57,26 +57,59 @@ class SaveLocation(str, Enum):
     temp = "Temp"
 
 
+class ConverterType(str, Enum):
+    full_document = "PdfConverter"
+    tables_only = "TableConverter"
+
+
+class LLMService(str, Enum):
+    # NOTE: Currently configured for local models only
+    # Future: Will support local Ollama, local OpenAI-compatible APIs
+    ollama_local = "ollama_local"  # For future local model support
+    disabled = "disabled"
+
+
+class OCREngine(str, Enum):
+    surya = "surya"  # Default Surya OCR (recommended)
+    auto = "auto"    # Heuristic selection
+
+
 @app.get("/")
 async def root():
     return HTMLResponse(
         """
-<h1>Marker API</h1>
+<h1>Marker API - Complete Document Processing Interface</h1>
 <ul>
-    <li><a href="/docs">API Documentation</a></li>
-    <li><a href="/marker">Run marker (post request only)</a></li>
+    <li><a href="/docs">📚 API Documentation</a></li>
+    <li><a href="/marker">🔄 Process Documents</a></li>
 </ul>
-<p><strong>Default Settings:</strong></p>
+
+<h2>🎯 Current Configuration</h2>
 <ul>
-    <li>Page Range: All pages</li>
-    <li>Force OCR: True (best accuracy)</li>
-    <li>Paginate Output: True</li>
-    <li>Output Format: Markdown, JSON, HTML, Chunks, or All formats</li>
-    <li>Save Location: Organization label (for your reference)</li>
+    <li><strong>Quality:</strong> High (Force OCR + RTX 5090 optimized)</li>
+    <li><strong>LLM Enhancement:</strong> Disabled (ready for local model integration)</li>
+    <li><strong>Output:</strong> All formats available (markdown/json/html/chunks)</li>
+    <li><strong>Performance:</strong> RTX 5090 batch sizes (32GB VRAM optimized)</li>
 </ul>
-<p><strong>RTX 5090 Optimizations:</strong> Batch sizes optimized for 32GB VRAM</p>
-<p><strong>Output:</strong> Downloads as ZIP file named filename_date_time_location.zip</p>
-<p><strong>Example:</strong> TDTest_20250930_143022_PMHx.zip</p>
+
+<h2>🔥 Advanced Features Available</h2>
+<ul>
+    <li><strong>Structured Extraction:</strong> Custom JSON schemas for RAG data</li>
+    <li><strong>Multi-language OCR:</strong> 90+ languages supported via Surya</li>
+    <li><strong>Debug Mode:</strong> Layout visualization and diagnostics</li>
+    <li><strong>Table-Only Mode:</strong> Extract tables exclusively</li>
+    <li><strong>Custom Processing:</strong> Override processor pipeline</li>
+</ul>
+
+<h2>📝 Notes for Developers</h2>
+<ul>
+    <li><strong>LLM Support:</strong> Configured for local models only (Ollama, local APIs)</li>
+    <li><strong>Cloud LLMs:</strong> Not implemented - use local inference for security</li>
+    <li><strong>Structured Extraction:</strong> Requires local LLM setup</li>
+    <li><strong>Performance:</strong> Batch sizes optimized for RTX 5090 Blackwell architecture</li>
+</ul>
+
+<p><strong>Output:</strong> Downloads as ZIP file with all requested formats and extracted images</p>
 """
     )
 
@@ -162,16 +195,43 @@ async def convert_pdf(params: CommonParams):
 
 @app.post("/marker/upload")
 async def convert_pdf_upload(
+    # === SECTION 1: Input & OCR Processing ===
     page_range: Optional[str] = Form(default="all", description="Page range: 'all' for all pages, or '1,2-5,10' for specific pages"),
     force_ocr: Optional[bool] = Form(default=True, description="Force OCR for best accuracy with math and complex layouts"),
-    paginate_output: Optional[bool] = Form(default=True, description="Add page separators in output"),
+    strip_existing_ocr: Optional[bool] = Form(default=False, description="Remove existing OCR and re-process with Surya"),
+    ocr_languages: Optional[str] = Form(default="en", description="Comma-separated language codes (e.g., 'en,es,fr')"),
+    ocr_engine: OCREngine = Form(default=OCREngine.surya, description="OCR engine selection"),
+    skip_existing: Optional[bool] = Form(default=False, description="Skip if output already exists (batch mode)"),
+    
+    # === SECTION 2: Content Processing & Quality ===
+    use_llm: Optional[bool] = Form(default=False, description="🚀 Enable LLM enhancement for highest accuracy (requires local model setup)"),
+    llm_service: LLMService = Form(default=LLMService.disabled, description="LLM service (NOTE: Local models only - no cloud APIs)"),
+    llm_model: Optional[str] = Form(default="", description="Specific model name (for future local model support)"),
+    max_context_length: Optional[int] = Form(default=32000, description="LLM context window size"),
+    block_correction_prompt: Optional[str] = Form(default="", description="Custom LLM prompt for output correction"),
+    redo_inline_math: Optional[bool] = Form(default=False, description="Highest quality math conversion (requires use_llm=True)"),
+    keep_page_headers_footers: Optional[bool] = Form(default=False, description="Retain headers/footers instead of removing them"),
+    debug: Optional[bool] = Form(default=False, description="Enable diagnostic output and layout visualization"),
+    
+    # === SECTION 3: Specialized Processing ===
+    converter_type: ConverterType = Form(default=ConverterType.full_document, description="Processing mode: full document or tables only"),
+    page_schema: Optional[str] = Form(default="", description="🔥 JSON schema for structured data extraction (requires use_llm=True)"),
+    processors: Optional[str] = Form(default="", description="Custom processor pipeline (advanced: comma-separated module paths)"),
+    
+    # === SECTION 4: Output Format & Rendering ===
     output_format: OutputFormat = Form(default=OutputFormat.markdown, description="Select output format"),
-    save_location: SaveLocation = Form(default=SaveLocation.pmhx, description="Choose output organization (for your reference)"),
-    # RTX 5090 Performance Optimization
-    table_rec_batch_size: Optional[int] = Form(default=48, description="Table recognition batch size (RTX 5090 optimized: 48)"),
-    detection_batch_size: Optional[int] = Form(default=32, description="Detection model batch size (RTX 5090 optimized: 32)"),
-    recognition_batch_size: Optional[int] = Form(default=64, description="Text recognition batch size (RTX 5090 optimized: 64)"),
-    disable_multiprocessing: Optional[bool] = Form(default=False, description="Disable multiprocessing (use for debugging)"),
+    paginate_output: Optional[bool] = Form(default=True, description="Add page separators in output"),
+    extract_images: Optional[bool] = Form(default=True, description="Extract and save images from document"),
+    bad_span_types: Optional[str] = Form(default="", description="Block types to exclude (e.g., 'footnotes,captions')"),
+    save_location: SaveLocation = Form(default=SaveLocation.pmhx, description="Organization label (for your reference)"),
+    
+    # === SECTION 5: RTX 5090 Performance Optimization ===
+    torch_device: Optional[str] = Form(default="cuda", description="Force specific device (cuda/cpu/mps)"),
+    table_rec_batch_size: Optional[int] = Form(default=48, description="Table recognition batch size (RTX 5090: 48)"),
+    detection_batch_size: Optional[int] = Form(default=32, description="Detection model batch size (RTX 5090: 32)"),
+    recognition_batch_size: Optional[int] = Form(default=64, description="Text recognition batch size (RTX 5090: 64)"),
+    disable_multiprocessing: Optional[bool] = Form(default=False, description="Single-threaded mode (debugging)"),
+    
     file: UploadFile = File(
         ..., description="The PDF file to convert.", media_type="application/pdf"
     ),
@@ -212,17 +272,61 @@ async def convert_pdf_upload(
         
         # Generate each requested format
         for format_type in formats_to_generate:
-            # Override the output directory and format in the config
-            options = params.model_dump()
-            options["output_dir"] = temp_output_dir
-            options["output_format"] = format_type
+            # Build comprehensive options dict preserving current working defaults
+            options = {
+                "output_dir": temp_output_dir,
+                "output_format": format_type,
+                # Current working defaults preserved
+                "page_range": page_range,
+                "force_ocr": force_ocr,
+                "paginate_output": paginate_output,
+            }
             
-            # Add RTX 5090 performance optimizations
-            if table_rec_batch_size:
+            # === INPUT & OCR PROCESSING ===
+            if strip_existing_ocr:
+                options["strip_existing_ocr"] = strip_existing_ocr
+            if ocr_languages and ocr_languages != "en":
+                options["ocr_languages"] = ocr_languages
+            if skip_existing:
+                options["skip_existing"] = skip_existing
+                
+            # === CONTENT PROCESSING & QUALITY ===
+            # NOTE: LLM features disabled by default - will support local models in future
+            if use_llm:
+                options["use_llm"] = use_llm
+                if block_correction_prompt:
+                    options["block_correction_prompt"] = block_correction_prompt
+                if redo_inline_math:
+                    options["redo_inline_math"] = redo_inline_math
+                if max_context_length != 32000:
+                    options["max_context_length"] = max_context_length
+                    
+            if keep_page_headers_footers:
+                options["keep_page_headers_footers"] = keep_page_headers_footers
+            if debug:
+                options["debug"] = debug
+                
+            # === SPECIALIZED PROCESSING ===
+            if page_schema and use_llm:
+                # Structured extraction requires LLM
+                options["page_schema"] = page_schema
+            if processors:
+                options["processors"] = processors
+                
+            # === OUTPUT CUSTOMIZATION ===
+            if not extract_images:
+                options["disable_image_extraction"] = True
+            if bad_span_types:
+                options["bad_span_types"] = bad_span_types
+                
+            # === RTX 5090 PERFORMANCE OPTIMIZATION ===
+            if torch_device != "cuda":
+                options["torch_device"] = torch_device
+            if table_rec_batch_size != 48:
                 options["table_rec_batch_size"] = table_rec_batch_size
-            if detection_batch_size:
+            if detection_batch_size != 32:
                 options["detection_batch_size"] = detection_batch_size  
-            if recognition_batch_size:
+            if recognition_batch_size != 64:
                 options["recognition_batch_size"] = recognition_batch_size
             if disable_multiprocessing:
                 options["disable_multiprocessing"] = disable_multiprocessing
