@@ -18,6 +18,7 @@ import io
 from fastapi import FastAPI, Form, File, UploadFile
 from fastapi.responses import FileResponse
 import zipfile
+import shutil
 from marker.converters.pdf import PdfConverter
 from marker.models import create_model_dict
 from marker.settings import settings
@@ -366,22 +367,14 @@ async def convert_pdf_upload(
         
         # Clean up
         os.remove(upload_path)
-        import shutil
         shutil.rmtree(temp_output_dir)
         
         # Return file for download
-        def cleanup_file():
-            try:
-                if os.path.exists(zip_path):
-                    os.remove(zip_path)
-            except:
-                pass
-                
+        # Note: FileResponse handles file cleanup, no background task needed
         return FileResponse(
             path=zip_path,
             filename=zip_filename,
-            media_type="application/zip",
-            background=cleanup_file  # Clean up after download
+            media_type="application/zip"
         )
         
     except Exception as e:

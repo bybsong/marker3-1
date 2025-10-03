@@ -87,22 +87,26 @@ services:
       retries: 3
       start_period: 60s
 
-  # Production Mode: Maximum security, baked-in code
-  marker-production:
-    image: marker3:rtx5090-dev-full
-    container_name: marker3-production
-    profiles: [production]
+  # Secure Production V1: Secure configuration for sensitive data processing
+  # Security Model: Dual-network (localhost access + future internal services)
+  marker-secure-production-v1:
+    image: marker3:rtx5090-dev-full  # Same image as dev, different security config
+    container_name: marker-secure-production-v1
+    profiles: [secure-production-v1]
     volumes:
-      - marker_cache:/home/appuser/.cache  # Read-only cached models
+      - ./cache:/home/appuser/.cache:ro  # Read-only cached models (no downloads)
+      - ./marker:/app/marker:ro           # Read-only code access (shares dev code)
+      - ./scripts:/app/scripts:ro
+      - ./static:/app/static:rw           # Fonts and assets (needs write to download fonts first time)
       - ./data:/app/data:rw
       - ./output:/app/output:rw
-      # NO source code mounts - uses baked-in code only
     environment:
       - CUDA_VISIBLE_DEVICES=0
       - PYTHONUNBUFFERED=1
-      - HF_HUB_OFFLINE=1         # Maximum security - use cached models only
-      - TRANSFORMERS_OFFLINE=1   # Maximum security - no external access
-      - NETWORK_MODE=production
+      # Security: Application-level blocks on external services
+      - HF_HUB_OFFLINE=1         # Block model downloads
+      - TRANSFORMERS_OFFLINE=1   # Block external ML services
+      - NETWORK_MODE=secure-production
     runtime: nvidia
     deploy:
       resources:
@@ -112,7 +116,10 @@ services:
               count: 1
               capabilities: [gpu]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:1111:8000"  # Localhost-only binding (blocks external host access)
+    networks:
+      - default  # For host connectivity (port mapping)
+      - secure   # For future internal services (databases, caches)
     command: python -c "from marker.scripts.server import server_cli; server_cli(['--host', '0.0.0.0', '--port', '8000'])"
     # Maximum security hardening
     cap_drop:
@@ -127,18 +134,21 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=1G
     healthcheck:
-      test: ["CMD", "python", "-c", "import marker; print('Production ready')"]
+      test: ["CMD", "python", "-c", "import marker; print('Secure Production V1 ready')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 60s
 
 # Docker Desktop Compatible Networking
-# Uses default bridge network for maximum compatibility
 networks:
   default:
     driver: bridge
-    # Docker Desktop's built-in network - most reliable
+    # Docker Desktop's built-in network - development use (full internet access)
+  secure:
+    driver: bridge
+    internal: true
+    # Air-gapped network for secure production processing (no external access)
 
 # Persistent data storage
 volumes:
