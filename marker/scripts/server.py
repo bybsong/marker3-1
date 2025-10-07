@@ -211,7 +211,7 @@ async def convert_pdf_upload(
     max_context_length: Optional[int] = Form(default=32000, description="LLM context window size"),
     block_correction_prompt: Optional[str] = Form(default="", description="Custom LLM prompt for output correction"),
     redo_inline_math: Optional[bool] = Form(default=False, description="Highest quality math conversion (requires use_llm=True)"),
-    keep_page_headers_footers: Optional[bool] = Form(default=False, description="Retain headers/footers instead of removing them"),
+    keep_page_headers_footers: Optional[bool] = Form(default=True, description="Retain headers/footers instead of removing them"),
     debug: Optional[bool] = Form(default=False, description="Enable diagnostic output and layout visualization"),
     
     # === SECTION 3: Specialized Processing ===

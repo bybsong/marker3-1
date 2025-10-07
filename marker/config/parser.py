@@ -113,6 +113,10 @@ class ConfigParser:
                     config["pdftext_workers"] = 1
                 case "disable_image_extraction":
                     config["extract_images"] = False
+                case "keep_page_headers_footers":
+                    # Map the combined flag to both renderer attributes
+                    config["keep_pageheader_in_output"] = v
+                    config["keep_pagefooter_in_output"] = v
                 case _:
                     if k in crawler.attr_set:
                         config[k] = v
