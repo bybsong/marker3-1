@@ -30,7 +30,11 @@ services:
       - NETWORK_MODE=open
       - PYTHONPATH=/app
       - FASTAPI_RELOAD=true      # Enable hot reload for development
+      - OLLAMA_BASE_URL=http://ollama:11434  # Connect to Ollama container
     runtime: nvidia
+    networks:
+      - default
+      - postgresql_rag_network  # Shared network with Ollama container
     deploy:
       resources:
         reservations:
@@ -68,7 +72,11 @@ services:
       - TRANSFORMERS_OFFLINE=1   # Secure - no external access
       - NETWORK_MODE=secure
       - PYTHONPATH=/app
+      - OLLAMA_BASE_URL=http://ollama:11434  # Connect to Ollama container
     runtime: nvidia
+    networks:
+      - default
+      - postgresql_rag_network  # Shared network with Ollama container
     deploy:
       resources:
         reservations:
@@ -107,6 +115,7 @@ services:
       - HF_HUB_OFFLINE=1         # Block model downloads
       - TRANSFORMERS_OFFLINE=1   # Block external ML services
       - NETWORK_MODE=secure-production
+      - OLLAMA_BASE_URL=http://ollama:11434  # Connect to Ollama container
     runtime: nvidia
     deploy:
       resources:
@@ -120,6 +129,7 @@ services:
     networks:
       - default  # For host connectivity (port mapping)
       - secure   # For future internal services (databases, caches)
+      - postgresql_rag_network  # Shared network with Ollama container
     command: python -c "from marker.scripts.server import server_cli; server_cli(['--host', '0.0.0.0', '--port', '8000'])"
     # Maximum security hardening
     cap_drop:
@@ -149,6 +159,9 @@ networks:
     driver: bridge
     internal: true
     # Air-gapped network for secure production processing (no external access)
+  postgresql_rag_network:
+    external: true
+    # Shared network with Ollama container for LLM communication
 
 # Persistent data storage
 volumes:

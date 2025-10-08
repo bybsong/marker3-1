@@ -1,0 +1,18 @@
+{
+  "use_llm": true,
+  "llm_service": "marker.services.ollama.OllamaService",
+  "ollama_model": "qwen2.5vl:7b-32k",
+  "enable_llm_section_header": true,
+  "enable_llm_table": false,
+  "enable_llm_table_merge": false,
+  "enable_llm_form": false,
+  "enable_llm_equation": false,
+  "enable_llm_mathblock": false,
+  "enable_llm_image_description": false,
+  "enable_llm_page_correction": false,
+  "enable_llm_complex_region": false,
+  "enable_llm_handwriting": false,
+  "page_range": "0",
+  "force_ocr": true
+}
+

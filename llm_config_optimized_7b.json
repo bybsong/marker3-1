@@ -1,0 +1,51 @@
+{
+  "_comment": "Optimized config for qwen2.5vl:7b-32k (32K context) - With 32K context, can now enable ALL processors!",
+  
+  "use_llm": true,
+  
+  "_section_model_config": "===== LLM Model Configuration =====",
+  "llm_service": "marker.services.ollama.OllamaService",
+  "ollama_model": "qwen2.5vl:7b-32k",
+  "_comment_model": "Custom 32K context model - perfect for vision tasks!",
+  "ollama_base_url": "http://ollama:11434",
+  
+  "_section_high_value": "===== High-Value LLM Processors (ENABLED) =====",
+  "enable_llm_table": true,
+  "_comment_table": "Tables are hard - this provides the best ROI",
+  
+  "enable_llm_table_merge": true,
+  "_comment_table_merge": "Merges multi-page tables - lightweight",
+  
+  "enable_llm_form": true,
+  "_comment_form": "Form field detection - useful for medical documents",
+  
+  "enable_llm_equation": true,
+  "_comment_equation": "LaTeX equation improvement - moderate context",
+  
+  "enable_llm_mathblock": true,
+  "_comment_mathblock": "Inline math correction - low context",
+  
+  "enable_llm_section_header": true,
+  "_comment_section_header": "Header hierarchy - low context",
+  
+  "_section_optional": "===== Optional Processors (can enable with 32K context!) =====",
+  "enable_llm_image_description": false,
+  "_comment_image": "Optional - Alt-text generation for images (enable if needed)",
+  
+  "enable_llm_page_correction": false,
+  "_comment_page": "Optional - Overall page accuracy (enable for complex layouts)",
+  
+  "enable_llm_complex_region": false,
+  "_comment_complex": "Optional - Nested layout handling (enable if needed)",
+  
+  "enable_llm_handwriting": false,
+  "_comment_handwriting": "Optional - Handwriting OCR (enable if documents have annotations)",
+  
+  "_section_performance": "===== Performance Settings =====",
+  "force_ocr": true,
+  "_comment_ocr": "Recommended for best quality with complex layouts",
+  
+  "paginate_output": true,
+  "extract_images": true
+}
+

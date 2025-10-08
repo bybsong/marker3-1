@@ -1,0 +1,41 @@
+{
+  "_comment": "Full-featured config for qwen2.5vl:7b-32k - ALL processors enabled with 32K context!",
+  
+  "use_llm": true,
+  
+  "_section_model_config": "===== LLM Model Configuration =====",
+  "llm_service": "marker.services.ollama.OllamaService",
+  "ollama_model": "qwen2.5vl:7b-32k",
+  "_comment_model": "Custom 32K context - Best of both worlds: fast + large context",
+  "ollama_base_url": "http://ollama:11434",
+  
+  "_section_all_enabled": "===== All LLM Processors ENABLED =====",
+  "enable_llm_table": true,
+  "enable_llm_table_merge": true,
+  "enable_llm_form": true,
+  "enable_llm_equation": true,
+  "enable_llm_mathblock": true,
+  "enable_llm_section_header": true,
+  "enable_llm_image_description": true,
+  "_comment_image": "32K context handles large images!",
+  
+  "enable_llm_page_correction": true,
+  "_comment_page": "32K context handles full page layouts!",
+  
+  "enable_llm_complex_region": true,
+  "_comment_complex": "32K context handles nested layouts!",
+  
+  "enable_llm_handwriting": true,
+  "_comment_handwriting": "Enable for documents with handwritten annotations",
+  
+  "_section_performance": "===== Performance Settings =====",
+  "force_ocr": true,
+  "paginate_output": true,
+  "extract_images": true,
+  
+  "_section_notes": "===== Notes =====",
+  "_note_1": "This config gives you maximum quality with fast 7B inference!",
+  "_note_2": "The 32K context eliminates truncation issues that plagued the original 4K model",
+  "_note_3": "Expected processing time: ~3-5 minutes per page (vs 8-10 min for 32B model)"
+}
+

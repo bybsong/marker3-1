@@ -71,6 +71,47 @@ class PdfConverter(BaseConverter):
         bool,
         "Enable higher quality processing with LLMs.",
     ] = False
+    # Selective LLM processor toggles (only apply when use_llm=True)
+    enable_llm_table: Annotated[
+        bool,
+        "Enable LLM table processor for improved table extraction.",
+    ] = True
+    enable_llm_table_merge: Annotated[
+        bool,
+        "Enable LLM table merge processor for multi-page tables.",
+    ] = True
+    enable_llm_form: Annotated[
+        bool,
+        "Enable LLM form processor for form field detection.",
+    ] = True
+    enable_llm_complex_region: Annotated[
+        bool,
+        "Enable LLM complex region processor for nested layouts.",
+    ] = True
+    enable_llm_image_description: Annotated[
+        bool,
+        "Enable LLM image description processor for alt-text generation.",
+    ] = True
+    enable_llm_equation: Annotated[
+        bool,
+        "Enable LLM equation processor for LaTeX improvement.",
+    ] = True
+    enable_llm_handwriting: Annotated[
+        bool,
+        "Enable LLM handwriting processor for handwritten text OCR.",
+    ] = True
+    enable_llm_mathblock: Annotated[
+        bool,
+        "Enable LLM math block processor for inline math correction.",
+    ] = True
+    enable_llm_section_header: Annotated[
+        bool,
+        "Enable LLM section header processor for header hierarchy.",
+    ] = True
+    enable_llm_page_correction: Annotated[
+        bool,
+        "Enable LLM page correction processor for overall accuracy.",
+    ] = True
     default_processors: Tuple[BaseProcessor, ...] = (
         OrderProcessor,
         BlockRelabelProcessor,
@@ -103,6 +144,40 @@ class PdfConverter(BaseConverter):
     )
     default_llm_service: BaseService = GoogleGeminiService
 
+    def _filter_processors_by_config(self, processors: Tuple[BaseProcessor, ...]) -> Tuple[BaseProcessor, ...]:
+        """
+        Filter LLM processors based on config toggles.
+        Only applies when use_llm=True. If a specific LLM processor is disabled,
+        it will be excluded from the processor list.
+        """
+        # Mapping of processor classes to their config toggle attributes
+        llm_processor_toggles = {
+            LLMTableProcessor: 'enable_llm_table',
+            LLMTableMergeProcessor: 'enable_llm_table_merge',
+            LLMFormProcessor: 'enable_llm_form',
+            LLMComplexRegionProcessor: 'enable_llm_complex_region',
+            LLMImageDescriptionProcessor: 'enable_llm_image_description',
+            LLMEquationProcessor: 'enable_llm_equation',
+            LLMHandwritingProcessor: 'enable_llm_handwriting',
+            LLMMathBlockProcessor: 'enable_llm_mathblock',
+            LLMSectionHeaderProcessor: 'enable_llm_section_header',
+            LLMPageCorrectionProcessor: 'enable_llm_page_correction',
+        }
+        
+        filtered = []
+        for processor_cls in processors:
+            # Check if this is an LLM processor with a toggle
+            if processor_cls in llm_processor_toggles:
+                toggle_attr = llm_processor_toggles[processor_cls]
+                # Only include if the toggle is enabled (default is True)
+                if getattr(self, toggle_attr, True):
+                    filtered.append(processor_cls)
+            else:
+                # Always include non-LLM processors
+                filtered.append(processor_cls)
+        
+        return tuple(filtered)
+
     def __init__(
         self,
         artifact_dict: Dict[str, Any],
@@ -122,7 +197,8 @@ class PdfConverter(BaseConverter):
         if processor_list is not None:
             processor_list = strings_to_classes(processor_list)
         else:
-            processor_list = self.default_processors
+            # Filter default processors based on LLM processor toggles
+            processor_list = self._filter_processors_by_config(self.default_processors)
 
         if renderer:
             renderer = strings_to_classes([renderer])[0]

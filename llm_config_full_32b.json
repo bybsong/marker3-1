@@ -1,0 +1,34 @@
+{
+  "_comment": "Full-featured config for qwen2.5vl:32b (large context window) - all processors enabled",
+  
+  "use_llm": true,
+  
+  "_section_model_config": "===== LLM Model Configuration =====",
+  "ollama_model": "qwen2.5vl:32b",
+  "ollama_base_url": "http://ollama:11434",
+  
+  "_section_all_enabled": "===== All LLM Processors ENABLED =====",
+  "enable_llm_table": true,
+  "enable_llm_table_merge": true,
+  "enable_llm_form": true,
+  "enable_llm_equation": true,
+  "enable_llm_mathblock": true,
+  "enable_llm_section_header": true,
+  "enable_llm_image_description": true,
+  "_comment_image": "32B model can handle large image contexts",
+  
+  "enable_llm_page_correction": true,
+  "_comment_page": "32B model can handle full page layouts",
+  
+  "enable_llm_complex_region": true,
+  "_comment_complex": "32B model can handle nested layouts",
+  
+  "enable_llm_handwriting": true,
+  "_comment_handwriting": "Enable for documents with handwritten annotations",
+  
+  "_section_performance": "===== Performance Settings =====",
+  "force_ocr": true,
+  "paginate_output": true,
+  "extract_images": true
+}
+

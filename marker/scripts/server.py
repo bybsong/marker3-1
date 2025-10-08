@@ -66,7 +66,7 @@ class ConverterType(str, Enum):
 class LLMService(str, Enum):
     # NOTE: Currently configured for local models only
     # Future: Will support local Ollama, local OpenAI-compatible APIs
-    ollama_local = "ollama_local"  # For future local model support
+    ollama = "marker.services.ollama.OllamaService"  # Ollama local service
     disabled = "disabled"
 
 
@@ -205,6 +205,7 @@ async def convert_pdf_upload(
     skip_existing: Optional[bool] = Form(default=False, description="Skip if output already exists (batch mode)"),
     
     # === SECTION 2: Content Processing & Quality ===
+    config_json: Optional[str] = Form(default="", description="📄 Path to JSON config file (e.g., llm_test_minimal.json) - overrides other settings"),
     use_llm: Optional[bool] = Form(default=False, description="🚀 Enable LLM enhancement for highest accuracy (requires local model setup)"),
     llm_service: LLMService = Form(default=LLMService.disabled, description="LLM service (NOTE: Local models only - no cloud APIs)"),
     llm_model: Optional[str] = Form(default="", description="Specific model name (for future local model support)"),
@@ -284,6 +285,9 @@ async def convert_pdf_upload(
             }
             
             # === INPUT & OCR PROCESSING ===
+            # Note: config_json is handled by ConfigParser.generate_config_dict()
+            if config_json:
+                options["config_json"] = config_json
             if strip_existing_ocr:
                 options["strip_existing_ocr"] = strip_existing_ocr
             if ocr_languages and ocr_languages != "en":
@@ -295,6 +299,9 @@ async def convert_pdf_upload(
             # NOTE: LLM features disabled by default - will support local models in future
             if use_llm:
                 options["use_llm"] = use_llm
+                # Pass llm_service if not disabled
+                if llm_service and llm_service.value != "disabled":
+                    options["llm_service"] = llm_service.value
                 if block_correction_prompt:
                     options["block_correction_prompt"] = block_correction_prompt
                 if redo_inline_math:

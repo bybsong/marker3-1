@@ -1,0 +1,13 @@
+{
+  "_comment": "Baseline config - LLM features completely disabled for speed comparison",
+  
+  "use_llm": false,
+  
+  "_section_performance": "===== Performance Settings =====",
+  "force_ocr": true,
+  "_comment_ocr": "Still use OCR for quality, but no LLM enhancement",
+  
+  "paginate_output": true,
+  "extract_images": true
+}
+

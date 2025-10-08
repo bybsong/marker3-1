@@ -11,11 +11,16 @@
 ### ✅ Built-In Features (Already Available)
 
 #### Local LLM Support
-- **Status:** ✅ ALREADY IMPLEMENTED
+- **Status:** ✅ CONFIGURED & READY (October 8, 2025)
 - **Service:** Ollama (`marker/services/ollama.py`)
 - **Usage:** `--use_llm --llm_service=marker.services.ollama.OllamaService`
-- **Default Model:** `llama3.2-vision`
-- **Base URL:** `http://localhost:11434`
+- **Default Model:** `qwen2.5vl:7b-32k` (custom 32K context, 6GB)
+- **Available Models:**
+  - `qwen2.5vl:7b-32k` ✅ **RECOMMENDED** - 32K context, fast inference
+  - `qwen2.5vl:7b` - Original 4K context (limited)
+  - `qwen2.5vl:32b` - Larger model, 4K context
+- **Base URL:** `http://ollama:11434` (Docker container-to-container)
+- **Network:** `postgresql_rag_network` (shared with Ollama container)
 
 #### LLM Service Options
 - [x] Ollama (Local) - `marker.services.ollama.OllamaService`
@@ -27,11 +32,178 @@
 
 ---
 
+## 🎉 Implementation Completed: October 8, 2025
+
+### Changes Made for Ollama Container Integration
+
+#### 1. Fixed Ollama Service Defaults (`marker/services/ollama.py`)
+- ✅ Changed default model: `llama3.2-vision` → `qwen2.5vl:7b`
+  - Reason: `llama3.2-vision` doesn't exist; using actual downloaded model
+  - Available models: `qwen2.5vl:7b` (6GB) and `qwen2.5vl:32b` (21GB)
+- ✅ Changed default URL: `http://localhost:11434` → `http://ollama:11434`
+  - Reason: Container-to-container communication uses container name as hostname
+  - Works seamlessly within Docker network
+
+#### 2. Fixed Server API (`marker/scripts/server.py`)
+- ✅ Fixed `LLMService` enum to use actual service class paths
+  - Before: `ollama_local = "ollama_local"` (invalid)
+  - After: `ollama = "marker.services.ollama.OllamaService"` (valid import path)
+- ✅ Added `llm_service` parameter passing in options builder
+  - Now properly passes service selection from API to converter
+  - Enables `/marker/upload` endpoint to use Ollama
+
+#### 3. Network Configuration (`docker-compose.yml`)
+- ✅ Connected all marker services to `postgresql_rag_network`
+  - `marker-dev-open`: Added network + `OLLAMA_BASE_URL` env var
+  - `marker-dev-secure`: Added network + `OLLAMA_BASE_URL` env var
+  - `marker-secure-production-v1`: Added network + `OLLAMA_BASE_URL` env var
+- ✅ Declared `postgresql_rag_network` as external
+  - Reuses existing network from Ollama container setup
+  - Enables seamless container-to-container communication
+
+### Container Network Architecture
+
+```
+postgresql_rag_network (172.20.0.0/16)
+├── ollama (172.20.0.5)           ← Already running
+├── marker-dev-open               ← Now connected
+├── marker-dev-secure             ← Now connected
+├── marker-secure-production-v1   ← Now connected
+├── rag_db (PostgreSQL)
+├── llamaindex-rag
+├── pgadmin_secure
+└── open-webui
+```
+
+### Usage Examples
+
+#### CLI Usage (from host):
+```bash
+marker input.pdf output/ \
+  --use_llm \
+  --llm_service=marker.services.ollama.OllamaService \
+  --ollama_base_url=http://localhost:11434 \
+  --ollama_model=qwen2.5vl:7b
+```
+
+#### API Usage (via FastAPI):
+```bash
+curl -X POST http://localhost:8000/marker/upload \
+  -F "file=@input.pdf" \
+  -F "use_llm=true" \
+  -F "llm_service=ollama" \
+  -F "output_format=markdown"
+```
+
+#### Docker Compose Startup:
+```bash
+# Dev mode with LLM access
+docker compose --profile dev-secure up
+
+# In another terminal, test the API
+curl http://localhost:8000/docs
+```
+
+### Testing Checklist
+
+- [ ] Start marker container: `docker compose --profile dev-secure up`
+- [ ] Verify Ollama connectivity: `docker exec marker3-dev-secure curl http://ollama:11434/api/version`
+- [ ] Test API with use_llm=true via Swagger UI at `http://localhost:8000/docs`
+- [ ] Compare output quality: with LLM vs without
+- [ ] Monitor VRAM usage during LLM processing
+- [ ] Test all LLM processors (tables, images, equations, etc.)
+
+---
+
+## 🎉 Selective LLM Processor Configuration (October 8, 2025)
+
+### New Feature: Per-Processor Control via JSON Config
+
+**Problem Solved:** The 7B vision model (`qwen2.5vl:7b`) has a 4096 token limit, causing truncation with high-context processors like image descriptions and page correction.
+
+**Solution:** JSON config files with boolean toggles for each LLM processor!
+
+### Example Configurations
+
+**1. Optimized for 7B Model with 32K Context** (`llm_config_optimized_7b.json`)
+```json
+{
+  "use_llm": true,
+  "ollama_model": "qwen2.5vl:7b-32k",  // Custom model with 32K context!
+  
+  "enable_llm_table": true,              // ✅ High value
+  "enable_llm_table_merge": true,         // ✅ Lightweight
+  "enable_llm_form": true,                // ✅ Useful for medical docs
+  "enable_llm_equation": true,            // ✅ Moderate context
+  "enable_llm_mathblock": true,           // ✅ Low context
+  "enable_llm_section_header": true,      // ✅ Low context
+  
+  "enable_llm_image_description": false,  // ❌ Huge context (exceeds 4096)
+  "enable_llm_page_correction": false,    // ❌ Huge context (exceeds 4096)
+  "enable_llm_complex_region": false,     // ❌ Large context
+  "enable_llm_handwriting": false         // ❌ Optional, save budget
+}
+```
+
+**2. Full-Featured for 32B Model** (`llm_config_full_32b.json`)
+- All processors enabled
+- Uses `qwen2.5vl:32b` with larger context window
+- Best quality, slower processing
+
+**3. Baseline No-LLM** (`llm_config_disabled.json`)
+- `use_llm: false`
+- For speed comparison
+
+### Usage
+
+**Via CLI:**
+```bash
+marker input.pdf output/ --config_json=llm_config_optimized_7b.json
+```
+
+**Via API:**
+```bash
+curl -X POST http://localhost:1111/marker/upload \
+  -F "file=@input.pdf" \
+  -F "config_json=@llm_config_optimized_7b.json"
+```
+
+**Edit configs directly:**
+```bash
+# Copy and customize
+cp llm_config_optimized_7b.json my_config.json
+# Edit my_config.json with your preferences
+# Restart container to pick up code changes
+docker compose --profile secure-production-v1 restart
+```
+
+### Configuration Options
+
+All LLM processor toggles (only apply when `use_llm=true`):
+
+| Config Key | Processor | Context Usage | Recommended for 7B |
+|-----------|-----------|---------------|-------------------|
+| `enable_llm_table` | Table extraction | Medium | ✅ Yes |
+| `enable_llm_table_merge` | Multi-page tables | Low | ✅ Yes |
+| `enable_llm_form` | Form fields | Medium | ✅ Yes |
+| `enable_llm_equation` | LaTeX equations | Medium | ✅ Yes |
+| `enable_llm_mathblock` | Inline math | Low | ✅ Yes |
+| `enable_llm_section_header` | Headers | Low | ✅ Yes |
+| `enable_llm_image_description` | Alt-text | **Very High** | ❌ No (use 32B) |
+| `enable_llm_page_correction` | Page layout | **Very High** | ❌ No (use 32B) |
+| `enable_llm_complex_region` | Nested layouts | High | ❌ No (use 32B) |
+| `enable_llm_handwriting` | Handwritten text | Medium | ⚠️ Optional |
+
+**Default:** All processors enabled (True) - you disable what you don't want
+
+---
+
 ## LLM Feature Matrix
 
 ### LLM Processors (Incremental Control)
 
 All processors respect the `--use_llm` flag. When disabled, they skip execution.
+**NEW:** Individual processors can now be selectively disabled via JSON config!
 
 | Processor | Enabled by Default | Block Types | Purpose | Status |
 |-----------|-------------------|-------------|---------|--------|
@@ -110,13 +282,21 @@ All processors respect the `--use_llm` flag. When disabled, they skip execution.
 
 ## Configuration Examples
 
-### Basic Local LLM Usage
+### Basic Local LLM Usage (from host)
 ```bash
 marker input.pdf output/ \
   --use_llm \
   --llm_service=marker.services.ollama.OllamaService \
   --ollama_base_url=http://localhost:11434 \
-  --ollama_model=qwen2-vl:7b
+  --ollama_model=qwen2.5vl:7b
+```
+
+### Container-to-Container (automatic with docker-compose)
+```bash
+# No need to specify URLs - defaults are now correct!
+marker input.pdf output/ \
+  --use_llm \
+  --llm_service=marker.services.ollama.OllamaService
 ```
 
 ### Disable Specific Features
